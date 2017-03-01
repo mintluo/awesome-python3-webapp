@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+__author__ = 'milletluo'
+
+'''
+async web application.
+'''
 import logging; logging.basicConfig(level=logging.INFO)
 
 import asyncio, os, json, time
@@ -14,8 +22,8 @@ def index(request):
 #init含有yield，是个生成器generator。@asyncio.coroutine把一个generator标记为协程coroutine类型
 #然后，我们就把这个coroutine扔到EventLoop中执行。
 #协程内部可以用yield from调用另一个协程
-@asyncio.coroutine#实现异步IO
-def init(loop):
+#实现异步IO
+async def init(loop):
 	#创建web服务器实例app，loop: event loop used for processing HTTP requests
     app = web.Application(loop=loop)
 	#将处理函数注册到app.router中，这里应该就是说把index函数注册为request '/' 的处理函数
@@ -23,7 +31,7 @@ def init(loop):
 	
 	#用协程创建监听服务。loop为传入函数的协程，调用其类方法创建一个监听服务
 	#yield from返回一个创建好的，绑定IP、端口、http协议簇的监听服务协程
-    srv = yield from loop.create_server(app.make_handler(),'127.0.0.1',9000)
+    srv = await loop.create_server(app.make_handler(),'127.0.0.1',9000)
 	#控制台打印日志
     logging.info('server started at http://127.0.0.1:9000...')
     return srv
