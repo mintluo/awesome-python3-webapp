@@ -18,7 +18,7 @@ def log(sql, args=()):
 
 # 创建全局连接池
 # 这个函数将来会在app.py的init函数中引用
-# 目的是为了让每个HTTP请求都能s从连接池中直接获取数据库连接
+# 目的是为了让每个HTTP请求都能从连接池中直接获取数据库连接
 # 避免了频繁关闭和打开数据库连接
 # 关键字参数允许传入0个或任意个含参数名的参数，这些关键字参数在函数内部自动组装为一个dict
 async def create_pool(loop, **kw):
@@ -28,7 +28,7 @@ async def create_pool(loop, **kw):
 	#调用一个自协程创建全局的连接池，create_pool的返回值是一个pool实例对象
 	__pool = await aiomysql.create_pool(
 	#dict的get方法，如果dict中有对应的value值，则返回对应于key的value值，否则返回默认值
-	#例如下面的host，如果dict里面没有'host',则返回后面的默认值，也就是'localhost'  
+	#例如下面的host，如果dict里面没有'host',则返回后面的默认值，也就是'localhost'
 		host = kw.get('host', 'localhost'),
 		port = kw.get('port', 3306),
 		user = kw['user'],
@@ -40,7 +40,7 @@ async def create_pool(loop, **kw):
 		minsize = kw.get('minsize',1),
 		loop = loop# 传递消息循环对象，用于异步执行
 	)
-	
+
 # =================================以下是SQL函数处理区====================================
 
 #执行SELECT语句。使用带参数的SQL，而不是自己拼接SQL字符串，这样可以防止SQL注入攻击
@@ -66,7 +66,7 @@ async def select(sql, args, size = None):
 				rs = await cur.fetchall()
 		logging.info('rows returned: %s' % len(rs))
 		return rs
-		
+
 #要执行INSERT、UPDATE、DELETE语句，可以定义一个通用的execute()函数
 #因为这3种SQL的执行都需要相同的参数，以及返回一个整数表示影响的行数
 async def execute(sql, args, autocommit=True):
@@ -87,7 +87,7 @@ async def execute(sql, args, autocommit=True):
             raise
 		#cursor对象不返回结果集，而是通过rowcount返回受影响的行数
         return affected
-		
+
 # 这个函数在元类中被引用，作用是创建一定数量的占位符
 def create_args_string(num):
     L = []
@@ -142,18 +142,18 @@ class TextField(Field):
 
 # =====================================Model元类区==========================================
 
-# ModelMetaclass元类定义了所有Model基类(继承ModelMetaclass)的子类实现的操作  
-   
-# -*-ModelMetaclass的工作主要是为一个数据库表映射成一个封装的类做准备：  
-# ***读取具体子类(user)的映射信息  
-# 创造类的时候，排除对Model类的修改  
-# 在当前类中查找所有的类属性(attrs)，如果找到Field属性，就将其保存到__mappings__的dict中，同时从类属性中删除Field(防止实例属性遮住类的同名属性)  
-# 将数据库表名保存到__table__中 
+# ModelMetaclass元类定义了所有Model基类(继承ModelMetaclass)的子类实现的操作
+
+# -*-ModelMetaclass的工作主要是为一个数据库表映射成一个封装的类做准备：
+# ***读取具体子类(user)的映射信息
+# 创造类的时候，排除对Model类的修改
+# 在当前类中查找所有的类属性(attrs)，如果找到Field属性，就将其保存到__mappings__的dict中，同时从类属性中删除Field(防止实例属性遮住类的同名属性)
+# 将数据库表名保存到__table__中
 # metaclass是类的模板，所以必须从`type`类型派生：
 class ModelMetaclass(type):
-	# __new__控制__init__的执行，所以在其执行之前  
-    # cls:代表要__init__的类，此参数在实例化时由Python解释器自动提供(例如下文的User和Model)  
-    # bases：代表继承父类的集合  
+	# __new__控制__init__的执行，所以在其执行之前
+    # cls:代表要__init__的类，此参数在实例化时由Python解释器自动提供(例如下文的User和Model)
+    # bases：代表继承父类的集合
     # attrs：类的方法集合
     def __new__(cls, name, bases, attrs):
         # 排除Model类本身，因为要排除对model类的修改
@@ -167,7 +167,7 @@ class ModelMetaclass(type):
 		#fields保存的是除主键外的属性名
         fields = []
         primaryKey = None
-        for k, v in attrs.items():# 这个k是表示字段名 
+        for k, v in attrs.items():# 这个k是表示字段名
             if isinstance(v, Field):
                 logging.info('  found mapping: %s ==> %s' % (k, v))
                 mappings[k] = v
@@ -187,8 +187,8 @@ class ModelMetaclass(type):
         # 将非主键的属性变形成这种反单引号形式,放入escaped_fields中,方便sql语句的书写
 		#x = range(10)
 		#print(list(map(hex, x)))
-		#print(list(map(lambda y : y * 2 + 1, x)))  
-		#print(list(map(lambda y, z : y * 2 + z, x, x))) 
+		#print(list(map(lambda y : y * 2 + 1, x)))
+		#print(list(map(lambda y, z : y * 2 + z, x, x)))
 		#结果输出：
 		#['0x0', '0x1', '0x2', '0x3', '0x4', '0x5', '0x6', '0x7', '0x8', '0x9']
 		#[1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
@@ -211,7 +211,7 @@ class ModelMetaclass(type):
 # 继承dict是为了使用方便，例如对象实例user['id']即可轻松通过UserModel去数据库获取到id
 # 元类自然是为了封装我们之前写的具体的SQL处理函数，从数据库获取数据
 # ORM映射基类,通过ModelMetaclass元类来构造类
-# Model类可以看作是对所有数据库表操作的基本定义的映射 
+# Model类可以看作是对所有数据库表操作的基本定义的映射
 class Model(dict, metaclass=ModelMetaclass):
     # 这里直接调用了Model的父类dict的初始化方法，把传入的关键字参数存入自身的dict中
     def __init__(self, **kw):
@@ -330,30 +330,30 @@ class Model(dict, metaclass=ModelMetaclass):
 
 # =====================================调试区==========================================
 
-if __name__=='__main__':#一个类自带前后都有双下划线的方法，在子类继承该类的时候，这些方法会自动调用，比如__init__  
+if __name__=='__main__':#一个类自带前后都有双下划线的方法，在子类继承该类的时候，这些方法会自动调用，比如__init__
     #定义类的属性到列的映射，与本地数据库中的数据表保持一致！！
-    class students(Model): #虽然students类乍看没有参数传入，但实际上，students类继承Model类，Model类又继承dict类，所以students类的实例可以传入关键字参数  
-        id = IntegerField('id',primary_key=True) #主键为id， tablename为students，即类名  
-        name = StringField('name')  
-        sex = StringField('sex')  
-        age = IntegerField('age')  
-        tel = StringField('tel')  
-   
-    #创建实例  
-    async def test():  
-        await create_pool(loop=loop, host='localhost', port=3306, user='root', password='1234', db='mydatabse')  
-        mystudents = students(id=3, name='Fiona', sex='F', age=18, tel='123456')  
+    class students(Model): #虽然students类乍看没有参数传入，但实际上，students类继承Model类，Model类又继承dict类，所以students类的实例可以传入关键字参数
+        id = IntegerField('id',primary_key=True) #主键为id， tablename为students，即类名
+        name = StringField('name')
+        sex = StringField('sex')
+        age = IntegerField('age')
+        tel = StringField('tel')
+
+    #创建实例
+    async def test():
+        await create_pool(loop=loop, host='localhost', port=3306, user='root', password='1234', db='mydatabse')
+        mystudents = students(id=3, name='Fiona', sex='F', age=18, tel='123456')
 		# 保存到数据库
         await mystudents.save()
-        r = await students.findAll()  
+        r = await students.findAll()
         print(r)
-   
-    #创建异步事件的句柄  
-    loop = asyncio.get_event_loop()  
+
+    #创建异步事件的句柄
+    loop = asyncio.get_event_loop()
     loop.run_until_complete(test())
     loop.close()
-    if loop.is_closed():  
-        sys.exit(0)  
+    if loop.is_closed():
+        sys.exit(0)
 
 # ===============调试结果===================
 #[{'id': 1, 'name': 'Tom', 'sex': 'M', 'age': 17, 'tel': '111111'}, {'id': 2, 'name': 'Lucy', 'sex': 'F', 'age': 18, 'tel': '123456'}, {'id': 3, 'name': 'Fiona', 'sex': 'F', 'age': 18, 'tel': '123456'}]
