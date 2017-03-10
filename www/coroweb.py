@@ -19,16 +19,16 @@ from apis import APIError
 # 这个装饰器将一个函数映射为一个URL处理函数
 def get(path):
     '''
-    定义装饰器 @get（"/path")
+    定义装饰器 @get('/path')
     '''
     def decorator(func):# 传入参数是函数
         # python内置的functools.wraps装饰器作用是把装饰后的函数的__name__属性变为原始的属性
         # 因为当使用装饰器后，函数的__name__属性会变为wrapper
-        @functools.wrap(func)
+        @functools.wraps(func)
         # 这个函数直接返回原始函数
         def wrapper(*args, **kw):
             return func(*args, **kw)
-        wrapper.__method__ = "GET"# 给原始函数添加请求方法 “GET”
+        wrapper.__method__ = 'GET'# 给原始函数添加请求方法 “GET”
         wrapper.__route__ = path# 给原始函数添加请求路径 path
         return wrapper
     return decorator
@@ -36,13 +36,13 @@ def get(path):
 
 def post(path):
     '''
-    定义一个装饰器 @post("/path")
+    定义一个装饰器 @post('/path')
     '''
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kw):
             return func(*args, **kw)
-        wrapper.__method__ = "POST"
+        wrapper.__method__ = 'POST'
         wrapper.__route__ = path
         return wrapper
     return decorator
@@ -60,32 +60,32 @@ def get_required_kw_args(fn):
     args = []
     params = inspect.signature(fn).parameters
     for name, param in params.items():
-        if params.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.Parameter.empty:
+        if param.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.Parameter.empty:
             # 将满足条件的参数名加入列表
             args.append(name)
     return tuple(args)
 
 # 这个函数将得到fn函数中的关键词参数的元组
-def get_name_kw_args(fn):
+def get_named_kw_args(fn):
     args = []
     params = inspect.signature(fn).parameters
     for name, param in params.items():
-        if params.kind == inspect.Parameter.KEYWORD_ONLY:
+        if param.kind == inspect.Parameter.KEYWORD_ONLY:
             args.append(name)
     return tuple(args)
 
 # 判断fn有没有关键词参数，如果有就输出True
 def has_named_kw_args(fn):
     params = inspect.signature(fn).parameters
-    for name, param in params.itmes():
-        if params.kind == inspect.Parameters.KEYWORD_ONLY:
+    for name, param in params.items():
+        if param.kind == inspect.Parameter.KEYWORD_ONLY:
             return True
 
 # 判断fn有没有可变的关键词参数（**），如果有就输出True
 def has_var_kw_arg(fn):
     params = inspect.signature(fn).parameters
     for name, param in params.items():
-        if params.kind == inspect.Parameter.VAR_KEYWORD:
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
             return True
 
 # 判断fn的参数中有没有参数名为request的参数
@@ -95,14 +95,14 @@ def has_request_arg(fn):
     params = sig.parameters
     found = False  # 这个函数默认输出没有参数名为request的参数
     for name, param in params.items():
-        if name == "request":
+        if name == 'request':#找到参数名为request的参数后把found设置为True
             found = True
             continue  # 下面的代码不执行，直接进入下一个循环
         # 如果找到了request参数，又找到了其他参数是POSITIONAL_OR_KEYWORD（不是VAR_POSITIONAL、KEYWORD_ONLY、VAR_KEYWORD参数）
         # request参数必须是最后一个位置和关键词参数
         if found and (param.kind != inspect.Parameter.VAR_POSITIONAL and param.kind != inspect.Parameter.KEYWORD_ONLY and param.kind != inspect.Parameter.VAR_KEYWORD):
-            raise ValueError("request必须是最后一个POSITIONAL_OR_KEYWORD类型的参数")
-        return found
+            raise ValueError('request必须是最后一个POSITIONAL_OR_KEYWORD类型的参数')
+    return found
 
 # 定义RequestHandler类，封装url处理函数
 # RequestHandler的目的是从url函数中分析需要提取的参数,从request中获取必要的参数
@@ -128,29 +128,29 @@ class RequestHandler(object):
         if self._has_var_kw_arg or self._has_named_kw_args or self._required_kw_args:
 
             # http method为post的处理
-            if request.method == "POST":
+            if request.method == 'POST':
                 # content_type是request提交的消息主体类型，没有就返回丢失消息主体类型
                 if not request.content_type:
                     return web.HTTPBadRequest('Missing Content-Type.')
                 # 把request.content_type转化为小写
                 ct = request.content_type.lower()
                # application/json表示消息主体是序列化后的json字符串
-                if ct.startswith("application/json"):
+                if ct.startswith('application/json'):
                     params = await request.json()  # 用json方法读取信息
                     if not isinstance(params, dict):  # 如果读取出来的信息类型不是dict
                         # 那json对象一定有问题
-                        return web.HTTPBadRequest("JSON body must be object.")
+                        return web.HTTPBadRequest('JSON body must be object.')
                     kw = params  # 把读取出来的dict赋值给kw
                 # 以下2种content type都表示消息主体是表单
-                elif ct.startswith("application/x-www-form-urlencode") or ct.startswith("multipart/form-data"):
+                elif ct.startswith('application/x-www-form-urlencoded') or ct.startswith('multipart/form-data'):
                     # request.post方法从request body读取POST参数,即表单信息,并包装成字典赋给kw变量
                     params= await request.post()
                     kw= dict(**params)
                 else:  # post的消息主体既不是json对象，又不是浏览器表单，只能报错返回不支持该消息主体类型
-                    return web.HTTPBadRequest("Unsupported Content-Type: %s" % request,content_type)
+                    return web.HTTPBadRequest('Unsupported Content-Type: %s' % request.content_type)
 
             # http method为get的处理
-            if request.method == "GET":
+            if request.method == 'GET':
                 # request.query_string表示url中的查询字符串
                 # 比如我百度ReedSun，得到网址为https://www.baidu.com/s?ie=UTF-8&wd=ReedSun
                 # 其中‘ie=UTF-8&wd=ReedSun’就是查询字符串
@@ -190,7 +190,7 @@ class RequestHandler(object):
 
         # 如果fn的参数有request，则再给kw中加上request的key和值
         if self._has_request_arg:
-            kw["request"] = request
+            kw['request'] = request
 
         # 如果fn的参数有，没有默认值的关键字参数
         # 这个if语句块主要是为了检查一下kw
@@ -198,15 +198,19 @@ class RequestHandler(object):
             for name in self._required_kw_args:
                 # kw必须包含全部没有默认值的关键字参数，如果发现遗漏则说明有参数没传入，报错
                 if not name in kw:
-                    return web.HTTPBadRequest("Missing argument: %s" % name)
+                    return web.HTTPBadRequest('Missing argument: %s' % name)
         # 以上过程即为从request中获得必要的参数，并组成kw
         # kw的建立过程比较繁琐，我做了一张思维导图，详见本目录下RequestHandler.png
 
 
         # 以下调用handler处理，并返回response
-        logging.info("call with args: %s" % str(kw))
+        logging.info('call with args: %s' % str(kw))
         try:
-            r = await self._func(**kw)
+            print("Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            print(self._func)
+            print(self._func.__name__) 
+            r = await self._func(**kw)  # 执行handler模块里的函数
+            print(r)
             return r
         except APIError as e:
             return dict(error=e.error, data=e.data, message=e.message)
@@ -217,17 +221,17 @@ def add_static(app):
     # os.path.dirname(), 去掉文件名,返回目录路径
     # os.path.join(), 将分离的各部分组合成一个路径名
     # 因此以下操作就是将本文件同目录下的static目录(即www/static/)加入到应用的路由管理器中
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
     # app = web.Application(loop=loop)这是在app.py模块中定义的
-    app.router.add_static("/static/", path)
-    logging.info("add static %s => %s" % ("/static/", path))
+    app.router.add_static('/static/', path)
+    logging.info('add static %s => %s' % ('/static/', path))
 
 # 把请求处理函数注册到app
 # 处理将针对http method 和path进行
 # 被下面的add_routes函数调用
 def add_route(app, fn):
-    method = getattr(fn, "__method__", None)  # 获取fn.__method__属性,若不存在将返回None
-    path = getattr(fn, "__route__", None)  # 获取fn.__route__属性,若不存在将返回None
+    method = getattr(fn, '__method__', None)  # 获取fn.__method__属性方法,若不存在将返回None
+    path = getattr(fn, '__route__', None)  # 获取fn.__route__属性路径,若不存在将返回None
     if path is None or method is None:  # 如果两个属性其中之一没有值，那就会报错
         raise ValueError('@get or @post not defined in %s.' % str(fn))
     # 如果函数fn不是一个协程或者生成器，就把这个函数变成协程

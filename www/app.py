@@ -142,9 +142,9 @@ def datetime_filter(t):
     return u'%s年%s月%s日' % (dt.year, dt.month, dt.day)
 
 #request为aiohttp.web.request实例，包含http请求的信息，一般不用自己构造
-def index(request):
+#def index(request):
 #返回首页内容
-    return web.Response(body=b'<hl>Awesome Blog</hl>',content_type='text/html',charset='UTF-8')
+    #return web.Response(body=b'<hl>Awesome Blog</hl>',content_type='text/html',charset='UTF-8')
 #如果不添加content_type和charset参数（默认值是None），则服务器直接返回body，浏览器识别不了该页面内容，从而提示下载该页面文件。
 
 #init含有yield，是个生成器generator。@asyncio.coroutine把一个generator标记为协程coroutine类型

@@ -47,25 +47,25 @@ async def create_pool(loop, **kw):
 # sql参数即为sql语句，args表示要搜索的参数
 # size用于指定最大的查询数量，不指定将返回所有查询结果
 async def select(sql, args, size = None):
-	log(sql, args)
-	global __pool
-	# 用with语句可以封装清理（关闭conn)和处理异常工作
-	#with 语句将该方法的返回值赋值给 as 子句中的 target
-	# 从连接池中获得一个数据库连接
-	async with __pool.get() as conn:
-		# 使用cursor()方法获取操作游标,cursor返回格式为字典格式，默认以列表list表示
-		async with conn.cursor(aiomysql.DictCursor) as cur:
-			#SQL语句的占位符是?，而MySQL的占位符是%s，select()函数在内部自动替换
-			# 使用execute方法执行SQL语句args
-			await cur.execute(sql.replace('?', '%s'), args or ())
-			if size:
-				# 使用 fetchmany() 方法每次读取size的数据量。
-				rs = await cur.fetchmany(size)
-			else:
-			#否则，通过fetchall()获取所有记录
-				rs = await cur.fetchall()
-		logging.info('rows returned: %s' % len(rs))
-		return rs
+    log(sql, args)
+    global __pool
+    # 用with语句可以封装清理（关闭conn)和处理异常工作
+    #with 语句将该方法的返回值赋值给 as 子句中的 target
+    # 从连接池中获得一个数据库连接
+    async with __pool.get() as conn:
+    # 使用cursor()方法获取操作游标,cursor返回格式为字典格式，默认以列表list表示
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+        #SQL语句的占位符是?，而MySQL的占位符是%s，select()函数在内部自动替换
+        # 使用execute方法执行SQL语句args
+            await cur.execute(sql.replace('?', '%s'), args or ())
+            if size:
+                # 使用 fetchmany() 方法每次读取size的数据量。
+                rs = await cur.fetchmany(size)
+            else:
+                #否则，通过fetchall()获取所有记录
+                rs = await cur.fetchall()
+        logging.info('rows returned: %s' % len(rs))
+        return rs
 
 #要执行INSERT、UPDATE、DELETE语句，可以定义一个通用的execute()函数
 #因为这3种SQL的执行都需要相同的参数，以及返回一个整数表示影响的行数
@@ -76,7 +76,7 @@ async def execute(sql, args, autocommit=True):
             await conn.begin()
         try:
             # execute类型sql操作返回结果只有行号，不需要dict
-            async with conn.cursor() as cur:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(sql.replace('?', '%s'), args)
                 affected = cur.rowcount
             if not autocommit:
@@ -152,9 +152,10 @@ class TextField(Field):
 # metaclass是类的模板，所以必须从`type`类型派生：
 class ModelMetaclass(type):
 	# __new__控制__init__的执行，所以在其执行之前
-    # cls:代表要__init__的类，此参数在实例化时由Python解释器自动提供(例如下文的User和Model)
+    # cls:将要创建的类，类似与self，但是self指向的是instance，而这里cls指向的是class，此参数在实例化时由Python解释器自动提供(例如下文的Model)
+    # name：类的名字，也就是我们通常用类名.__name__获取的。
     # bases：代表继承父类的集合
-    # attrs：类的方法集合
+    # attrs：属性的dict。dict的内容可以是变量(类属性），也可以是函数（类方法）。
     def __new__(cls, name, bases, attrs):
         # 排除Model类本身，因为要排除对model类的修改
         if name=='Model':
@@ -224,7 +225,7 @@ class Model(dict, metaclass=ModelMetaclass):
         except KeyError:
             raise AttributeError(r"'Model' object has no attribute '%s'" % key)
 
-    # 设置dict的值的，通过d.k = v 的方式
+    # 设置dict的key的值，通过d.k = v 的方式
     def __setattr__(self, key, value):
         self[key] = value
 

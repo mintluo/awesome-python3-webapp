@@ -20,7 +20,7 @@ def next_id():
 class User(Model):
     __table__ = 'users'
     """docstring for User"""
-    id = StringField(primary_key = True, default = next_id, ddl = 'varchar(50)')
+    id = StringField(primary_key = True, default = next_id(), ddl = 'varchar(50)')
     email = StringField(ddl = 'varchar(50)')
     passwd = StringField(ddl = 'varchar(50)')
     admin = BooleanField()
@@ -31,7 +31,7 @@ class User(Model):
 class Blog(Model):
     __table__ = 'blogs'
 
-    id = StringField(primary_key=True, default=next_id, ddl='varchar(50)')
+    id = StringField(primary_key=True, default=next_id(), ddl='varchar(50)')
     user_id = StringField(ddl='varchar(50)')
     user_name = StringField(ddl='varchar(50)')
     user_image = StringField(ddl='varchar(500)')
@@ -43,7 +43,7 @@ class Blog(Model):
 class Comment(Model):
     __table__ = 'comments'
 
-    id = StringField(primary_key=True, default=next_id, ddl='varchar(50)')
+    id = StringField(primary_key=True, default=next_id(), ddl='varchar(50)')
     blog_id = StringField(ddl='varchar(50)')
     user_id = StringField(ddl='varchar(50)')
     user_name = StringField(ddl='varchar(50)')
