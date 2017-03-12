@@ -23,6 +23,20 @@ from jinja2 import Environment, FileSystemLoader
 import orm
 from coroweb import add_routes, add_static
 
+#一个jinja2的filter（过滤器），把一个浮点数转换成日期字符串
+def datetime_filter(t):
+    delta = int(time.time() - t)
+    if delta < 60:
+        return '1分钟前'
+    if delta < 3600:
+        return '%s分钟前' % (delta // 60)
+    if delta < 86400:
+        return '%s小时前' % (delta // 3600)
+    if delta < 604800:
+        return '%s天前' % (delta // 86400)
+    dt = datetime.fromtimestamp(t)
+    return '%s年%s月%s日' % (dt.year, dt.month, dt.day)
+
 # 这个函数的功能是初始化jinja2模板，配置jinja2的环境
 def init_jinja2(app, **kw):
     logging.info('init jinja2...')
