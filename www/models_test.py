@@ -8,9 +8,11 @@ from models import User, Blog, Comment
 
 async def test():
     await orm.create_pool(loop = loop, user='www-data', password='www-data', db='awesome')
-    #往User数据表中插入数据
-    u = User(name='Test', email='test@example.com', passwd='1234567890', image='about:blank')
-    await u.save()
+    #往User数据表中插入数据，注意：已插入的输出重复插入会报错
+    #u = User(name='Test', email='test@example.com', passwd='1234567890', image='about:blank')
+    #await u.save()
+    uu = User(name='milletluotest', email='milletluo@example.com', passwd='1234', image='about:blank')
+    await uu.save()
 
 if __name__ == '__main__':
 

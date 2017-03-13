@@ -35,3 +35,13 @@ def index(request):
         '__template__': 'blogs.html',
         'blogs': blogs
     }
+
+# 用户信息接口,用于返回机器能识别的用户信息
+@get('/api/users')
+async def api_get_users():
+    users = await User.findAll(orderBy='created_at desc')
+    for u in users:
+        # 将user中的password隐藏
+        u.passwd = '******'
+    # 以dict形式返回,并且未指定__template__,将被app.py的response factory处理为json
+    return dict(users=users)
