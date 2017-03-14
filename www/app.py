@@ -22,6 +22,7 @@ from aiohttp import web
 from jinja2 import Environment, FileSystemLoader
 import orm
 from coroweb import add_routes, add_static
+from handlers import cookie2user, COOKIE_NAME
 
 #一个jinja2的filter（过滤器），把一个浮点数转换成日期字符串
 def datetime_filter(t):
@@ -73,6 +74,25 @@ async def logger_factory(app, handler):
         # await asyncio.sleep(0.3)
         return (await handler(request))
     return logger
+
+# 这个函数在day10中定义
+# 这个middlewares的作用是在处理请求之前，先将cookie解析出来，并将登陆用户绑定到request对象上
+# 以后的每个请求，都是在这个middle之后处理的，都已经绑定了用户信息
+async def auth_factory(app, handler):
+    async def auth(request):
+        logging.info('check user: %s %s' % (request.method, request.path))
+        request.__user__ = None  # 先把请求的__user__属性绑定None
+        cookie_str = request.cookies.get(COOKIE_NAME)  # 通过cookie名取得加密cookie字符串，COOKIE_NAME是在headlers模块中定义的
+        if cookie_str:
+            user = await cookie2user(cookie_str)  # 验证cookie，并得到用户信息
+            if user:
+                logging.info('set current user: %s' % user.email)
+                request.__user__ = user  # 将用户信息绑定到请求上
+        # 如果请求路径是管理页面，但是用户不是管理员，将重定向到登陆页面
+        if request.path.startswith('/manage/') and (request.__user__ is None or not request.__user__.admin):
+            return web.HTTPFound('/signin')
+        return (await handler(request))
+    return auth
 
 # 只有当请求方法为POST时这个函数才起作用
 async def data_factory(app, handler):
@@ -173,8 +193,9 @@ async def init(loop):
 
     # 创建数据库连接池
     await orm.create_pool (loop = loop, host = '127.0.0.1', port = 3306, user='www-data', password='www-data', db = 'awesome')
+    # 创建app对象，同时传入上文定义的拦截器middlewares
     app = web.Application(loop=loop, middlewares=[
-         logger_factory, response_factory
+         logger_factory, auth_factory, response_factory
     ])
     # 初始化jinja2模板，并传入时间过滤器
     init_jinja2(app, filters=dict(datetime=datetime_filter))
