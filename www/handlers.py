@@ -10,12 +10,41 @@ import re, time, json, logging, hashlib, base64, asyncio
 import markdown2
 from aiohttp import web
 from coroweb import get, post
-from apis import APIValueError, APIResourceNotFoundError
+from apis import APIValueError, APIResourceNotFoundError, APIError
 from models import User, Comment, Blog, next_id
 from config import configs
 
 COOKIE_NAME = 'awesession'  # cookie名，用于设置cookie
 _COOKIE_KEY = configs.session.secret  # cookie密钥，作为加密cookie的原始字符串的一部分
+
+# 在api_create_blog()（实现博客创建功能）中被调用
+# 验证用户身份
+# 如果没有用户或用户没有管理员属性，报错
+def check_admin(request):
+    if request.__user__ is None or not request.__user__.admin:
+        raise APIPermissionError()
+
+# 这个函数作用是获取页码
+def get_page_index(page_str):
+    # 将传入的字符转化为页码信息
+    # 实际上就是对页码信息做合法化检查
+    p = 1
+    try:
+        p = int(page_str)
+    except ValueError as e:
+        pass
+    if p < 1:
+        p = 1
+    return p
+
+# 文本转html
+# 这个函数在get_blog()中被调用
+def text2html(text):
+    # 先用filter函数对输入的文本进行过滤处理，断行，去首尾空白字符
+    # 再用map函数对特殊符号进行转换，再将字符串装入html的<p>标签中
+    lines = map(lambda s: '<p>%s</p>' % s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'), filter(lambda s: s.strip() != '', text.split('\n')))
+    # lines是一个字符串列表，该字符串即表示html的段落
+    return ''.join(lines)
 
 # 通过用户信息计算加密cookie
 def user2cookie(user, max_age):
@@ -78,7 +107,9 @@ def index(request):
     # app.py的response_factory将会对handler的返回值进行分类处理
     return {
         '__template__': 'blogs.html',
-        'blogs': blogs
+        'blogs': blogs,
+        # 返回__user__，以供__base__.html中判断显示登陆状态
+        '__user__': request.__user__
     }
 
 # 用户信息接口,用于返回机器能识别的用户信息
@@ -104,6 +135,46 @@ def signin():
     return {
         '__template__': 'signin.html'
 }
+
+# 实现用户登出
+@get('/signout')
+def signout(request):
+    # 请求头部的referer，表示从哪里链接到当前页面的，即获得上一个页面
+    referer = request.headers.get('Referer')
+    # 如果referer为None，则说明无前一个网址，可能是用户新打开了一个标签页，则登陆后转到首页
+    r = web.HTTPFound(referer or '/')
+    # 通过设置cookie的最大存活时间来删除cookie，从而使登陆状态消失
+    r.set_cookie(COOKIE_NAME, '-deleted-', max_age=0, httponly=True)
+    logging.info('user signed out.')
+    return r
+
+# 页面：博客详情页
+@get('/blog/{id}')
+async def get_blog(id):
+    blog = await Blog.find(id)  # 通过id从数据库中拉去博客信息
+    # 从数据库拉取指定blog的全部评论，按时间降序排序，即最新的排在最前
+    comments = await Comment.findAll('blog_id=?', [id], orderBy='created_at desc')
+    # 将每条评论都转化成html格式
+    for c in comments:
+        c.html_content = text2html(c.content)
+    # blog也是markdown格式，将其转化成html格式
+    blog.html_content = markdown2.markdown(blog.content)
+    return {
+        '__template__': 'blog.html',
+        'blog': blog,
+        'comments': comments
+    }
+
+# 页面：日志创建页
+@get('/manage/blogs/create')
+def manage_create_blog():
+    return {
+        '__template__': 'manage_blog_edit.html',
+        'id': '',  # id的值将传给js变量I
+        # action的值也将传给js变量action
+        # 将在用户提交博客的时候，将数据post到action制定的路径，此处即为创建博客的api
+        'action': '/api/blogs'
+    }
 
 # API:用户注册
 # 在register.html中将会通过/api/users调用
@@ -199,14 +270,21 @@ async def authenticate(*, email, passwd):  # 通过邮箱与密码验证登陆
     r.body = json.dumps(user, ensure_ascii=False).encode('utf-8')
     return r
 
-# 实现用户登出
-@get('/signout')
-def signout(request):
-    # 请求头部的referer，表示从哪里链接到当前页面的，即获得上一个页面
-    referer = request.headers.get('Referer')
-    # 如果referer为None，则说明无前一个网址，可能是用户新打开了一个标签页，则登陆后转到首页
-    r = web.HTTPFound(referer or '/')
-    # 通过设置cookie的最大存活时间来删除cookie，从而使登陆状态消失
-    r.set_cookie(COOKIE_NAME, '-deleted-', max_age=0, httponly=True)
-    logging.info('user signed out.')
-    return r
+# API：实现博客创建功能
+@post('/api/blogs')
+async def api_create_blog(request, *, name, summary, content):
+    # 检查用户权限
+    check_admin(request)
+    # 验证博客信息的合法性
+    if not name or not name.strip():
+        raise APIValueError('name', 'name cannot be empty.')
+    if not summary or not summary.strip():
+        raise APIValueError('summary', 'summary cannot be empty.')
+    if not content or not content.strip():
+        raise APIValueError('content', 'content cannot be empty.')
+    # 创建博客对象
+    blog = Blog(user_id=request.__user__.id, user_name=request.__user__.name, user_image=request.__user__.image, name=name.strip(), summary=summary.strip(), content=content.strip())
+    # 储存博客到数据库中
+    await blog.save()
+    # 返回博客信息
+    return blog
