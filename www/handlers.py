@@ -10,7 +10,7 @@ import re, time, json, logging, hashlib, base64, asyncio
 import markdown2
 from aiohttp import web
 from coroweb import get, post
-from apis import APIValueError, APIResourceNotFoundError, APIError
+from apis import APIValueError, APIResourceNotFoundError, APIError, APIPermissionError, Page
 from models import User, Comment, Blog, next_id
 from config import configs
 
@@ -165,7 +165,10 @@ async def get_blog(id):
         'comments': comments
     }
 
-# 页面：日志创建页
+# 页面：日志创建页.
+# 输入编辑页面跳回登陆页面是因为注册的账户是普通账户，admin属性为false,
+# 进入mysql输入use awesome;
+# UPDATE users SET admin=TRUE WHERE email='XXX@XX.COM';
 @get('/manage/blogs/create')
 def manage_create_blog():
     return {
@@ -175,6 +178,15 @@ def manage_create_blog():
         # 将在用户提交博客的时候，将数据post到action制定的路径，此处即为创建博客的api
         'action': '/api/blogs'
     }
+
+# day12中定义
+# 页面：日志列表页
+@get('/manage/blogs')
+def manage_blogs(*, page='1'):
+    return {
+        '__template__': 'manage_blogs.html',
+        'page_index': get_page_index(page)
+}
 
 # API:用户注册
 # 在register.html中将会通过/api/users调用
@@ -270,6 +282,13 @@ async def authenticate(*, email, passwd):  # 通过邮箱与密码验证登陆
     r.body = json.dumps(user, ensure_ascii=False).encode('utf-8')
     return r
 
+# day11定义
+# API：实现获取单条博客信息的功能
+@get('/api/blogs/{id}')
+async def api_get_blog(*, id):
+    blog = await Blog.find(id)
+    return blog
+
 # API：实现博客创建功能
 @post('/api/blogs')
 async def api_create_blog(request, *, name, summary, content):
@@ -288,3 +307,17 @@ async def api_create_blog(request, *, name, summary, content):
     await blog.save()
     # 返回博客信息
     return blog
+
+# day12定义
+# 获取博客
+@get('/api/blogs')
+async def api_blogs(*, page='1'):
+    page_index = get_page_index(page)
+    num = await Blog.findNumber('count(id)') # num为博客总数
+    p = Page(num, page_index)  # 创建Page对象（Page对象在apis.py中定义）
+    if num == 0:
+        return dict(page=p, blogs=())  # 若博客数为0,返回字典,将被app.py的response中间件再处理
+    # 博客总数不为0,则从数据库中抓取博客
+    # limit强制select语句返回指定的记录数,前一个参数为偏移量,后一个参数为记录的最大数目
+    blogs = await Blog.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
+    return dict(page=p, blogs=blogs) # 返回字典,以供response中间件处理
