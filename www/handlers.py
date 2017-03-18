@@ -93,24 +93,25 @@ async def cookie2user(cookie_str):
         logging.exception(e)
         return None
 
+# day14中定义
+# 页面：首页
 @get('/')
-def index(request):
-    # summary用于在博客首页上显示的句子
-    summary = 'milletluo! Welcome to the IT World!'
-    # 这里只是手动写blogs的list，并没有调用数据库
-    blogs = [
-        Blog(id='1', name='Test Blog', summary=summary, created_at=time.time()-120),
-        Blog(id='2', name='Something New', summary=summary, created_at=time.time()-3600),
-        Blog(id='3', name='Learn Swift', summary=summary, created_at=time.time()-7200)
-    ]
-    # 返回一个字典，其指示了使用何种模板，模板的内容
-    # app.py的response_factory将会对handler的返回值进行分类处理
+async def index(*, page='1'):
+    page_index = get_page_index(page)
+    num = await Blog.findNumber('count(id)')
+    # 创建Page对象（Page对象在apis.py中定义）
+    page = Page(num, page_index)
+    if num == 0:
+        blogs = []
+    else:
+        blogs = await Blog.findAll(orderBy='created_at desc', limit=(page.offset, page.limit))
+    # 返回一个模板，指示使用何种模板，模板的内容
+    # app.py的response_factory将会对handler.py的返回值进行分类处理
     return {
         '__template__': 'blogs.html',
-        'blogs': blogs,
-        # 返回__user__，以供__base__.html中判断显示登陆状态
-        '__user__': request.__user__
-    }
+        'page': page,
+        'blogs': blogs
+}
 
 # 用户信息接口,用于返回机器能识别的用户信息
 @get('/api/users')
@@ -150,7 +151,7 @@ def signout(request):
 
 # 页面：博客详情页
 @get('/blog/{id}')
-async def get_blog(id):
+async def get_blog(id, request):
     blog = await Blog.find(id)  # 通过id从数据库中拉去博客信息
     # 从数据库拉取指定blog的全部评论，按时间降序排序，即最新的排在最前
     comments = await Comment.findAll('blog_id=?', [id], orderBy='created_at desc')
@@ -162,6 +163,7 @@ async def get_blog(id):
     return {
         '__template__': 'blog.html',
         'blog': blog,
+        '__user__':request.__user__,
         'comments': comments
     }
 
@@ -187,6 +189,40 @@ def manage_blogs(*, page='1'):
         '__template__': 'manage_blogs.html',
         'page_index': get_page_index(page)
 }
+
+# day14定义
+# 管理重定向
+@get('/manage/')
+def manage():
+    return 'redirect:/manage/comments'
+
+# day14定义
+# 页面：评论列表页
+@get('/manage/comments')
+def manage_comments(*, page='1'):
+    return {
+        '__template__': 'manage_comments.html',
+        'page_index': get_page_index(page)
+    }
+
+# day14定义
+# 页面：修改博客页
+@get('/manage/blogs/edit')
+def manage_edit_blog(*, id):
+    return {
+        '__template__': 'manage_blog_edit.html',
+        'id': id,
+        'action': '/api/blogs/%s' % id
+    }
+
+# day14定义
+# 页面：用户管理
+@get('/manage/users')
+def manage_users(*, page='1'):  # 管理页面默认从1开始
+    return {
+        '__template__': 'manage_users.html',
+        'page_index': get_page_index(page)  # 通过page_index来显示分页
+    }
 
 # API:用户注册
 # 在register.html中将会通过/api/users调用
@@ -321,3 +357,76 @@ async def api_blogs(*, page='1'):
     # limit强制select语句返回指定的记录数,前一个参数为偏移量,后一个参数为记录的最大数目
     blogs = await Blog.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
     return dict(page=p, blogs=blogs) # 返回字典,以供response中间件处理
+
+# day14定义
+# API：获取评论
+@get('/api/comments')
+async def api_comments(*, page='1'):
+    page_index = get_page_index(page)
+    num = await Comment.findNumber('count(id)')  # num为评论总数
+    p = Page(num, page_index)  # 创建Page对象，保存页面信息
+    if num == 0:
+        return dict(page=p, comments=())  # 若评论数为零，返回字典，将会被app.py的response中间件再处理
+    # 博客总数不为0,则从数据库中抓取博客
+    # limit强制select语句返回指定的记录数,前一个参数为偏移量,后一个参数为记录的最大数目
+    comments = await Comment.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
+    return dict(page=p, comments=comments)
+
+# day14定义
+# API：创建评论
+@post('/api/blogs/{id}/comments')
+async def api_create_comment(id, request, *, content):
+    user = request.__user__
+    # 验证用户
+    if user is None:
+        raise APIPermissionError('Please signin first.')
+    # 验证评论内容是否存在
+    if not content or not content.strip():
+        raise APIValueError('content')
+    # 验证博客是否存在
+    blog = await Blog.find(id)
+    if blog is None:
+        raise APIResourceNotFoundError('Blog')
+    # 创建评论对象
+    comment = Comment(blog_id=blog.id, user_id=user.id, user_name=user.name, user_image=user.image, content=content.strip())
+    await comment.save()  # 储存评论到数据库中
+    return comment  # 返回评论
+
+# day14定义
+# API：删除评论
+@post('/api/comments/{id}/delete')
+async def api_delete_comments(id, request):
+    check_admin(request)  #查看权限，是否是管理员
+    c = await Comment.find(id)  # 从数据库中拉去评论
+    if c is None:
+        raise APIResourceNotFoundError('Comment')
+    await c.remove()  # 删除评论
+    return dict(id=id)  # 返回被删除评论的id
+
+# day14定义
+# API:修改博客
+@post('/api/blogs/{id}')
+async def api_update_blog(id, request, *, name, summary, content):
+    check_admin(request)  # 检查用户权限
+    blog = await Blog.find(id)  # 从数据库中拉去修改前的博客
+    # 检查博客的合法性
+    if not name or not name.strip():
+        raise APIValueError('name', 'name cannot be empty.')
+    if not summary or not summary.strip():
+        raise APIValueError('summary', 'summary cannot be empty.')
+    if not content or not content.strip():
+        raise APIValueError('content', 'content cannot be empty.')
+    blog.name = name.strip()
+    blog.summary = summary.strip()
+    blog.content = content.strip()
+    await blog.update()  # 更新博客
+    return blog  # 返回博客信息
+
+# day14定义
+# API:删除博客
+@post('/api/blogs/{id}/delete')
+async def api_delete_blog(request, *, id):
+    check_admin(request)
+    blog = await Blog.find(id)
+    await blog.remove()
+    return dict(id=id)
