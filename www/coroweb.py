@@ -208,7 +208,7 @@ class RequestHandler(object):
         try:
             print("Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
             print(self._func)
-            print(self._func.__name__) 
+            print(self._func.__name__)
             r = await self._func(**kw)  # 执行handler模块里的函数
             print(r)
             return r
@@ -258,7 +258,7 @@ def add_routes(app, module_name):
         mod = __import__(module_name, globals(), locals())
     else:
         name = module_name[n+1:]  # 当module_name为handler.handlers时，[n+1:]就是取.后面的部分，也就是handlers
-        # 下面的语句相当于执行了两个步骤，传入的module_name是aaa.bbb，第一个步骤相当于
+        # 下面的语句相当于执行了两个步骤，传入的module_name是aaa.bbb
         # 第一个步骤相当于from aaa import bbb导入模块以及子模块
         # 第二个步骤通过getattr()方法取得子模块名, 如datetime.datetime
         mod = getattr(__import__(module_name[:n], globals(), locals(), [name]), name)
@@ -273,6 +273,6 @@ def add_routes(app, module_name):
         if callable(fn):  # 查看提取出来的属性是不是函数
             method = getattr(fn, '__method__', None)
             path = getattr(fn, '__route__', None)
-            # 如果是函数，再判断是否有__method__和__route__属性，如果存在则使用app_route函数注册
+            # 如果是函数，再判断是否有__method__和__route__属性，如果存在则使用add_route函数注册
             if method and path:
                 add_route(app, fn)
