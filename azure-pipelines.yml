@@ -34,3 +34,8 @@ steps:
     pip install pytest pytest-azurepipelines
     pytest
   displayName: 'pytest'
+  condition: 
+- task: CMake@1
+  inputs:
+    cmakeArgs: '-0tttt'
+    runInsideShell: true
